@@ -1,7 +1,12 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
-module IOHK.Node (startNode) where
+module IOHK.Node
+    ( startNode
+    , Options(..)
+    , defaultOptions
+    ) where
 
 import           Network.Transport (EndPointAddress(..))
 import           Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
@@ -20,6 +25,23 @@ import           System.Clock
 import           System.IO
 import           GHC.Generics
 
+data Options = Options
+    { optsHost    :: String
+    , optsPort    :: String
+    , optsSendFor :: Int
+    , optsWaitFor :: Int
+    , optsSeed    :: Int
+    } deriving (Show)
+
+defaultOptions :: Options
+defaultOptions = Options
+    { optsHost    = "127.0.0.1"
+    , optsPort    = "9000"
+    , optsSendFor = 10
+    , optsWaitFor = 3
+    , optsSeed    = 1
+    }
+
 type Payload = (ProcessId, Int, Double)
 
 data Timeout = Timeout
@@ -27,15 +49,12 @@ data Timeout = Timeout
 
 instance Binary Timeout
 
-startNode :: HostName
-          -> ServiceName
+startNode :: Options
           -> [(HostName, ServiceName)]
           -> [Double]
-          -> Int
-          -> Int
           -> IO ()
-startNode host port remotes nums sendfor waitfor = do
-    Right t <- createTransport host port defaultTCPParameters
+startNode Options{..} remotes nums = do
+    Right t <- createTransport optsHost optsPort defaultTCPParameters
     node <- newLocalNode t initRemoteTable
     done <- newEmptyMVar :: IO (MVar (Double, Int))
 
@@ -57,7 +76,7 @@ startNode host port remotes nums sendfor waitfor = do
 
         forever $ do
             t <- currentTime
-            if t - started >= sendfor'
+            if t - started >= sendFor
             then do
                 send receiver Timeout
                 send broadcaster Timeout
@@ -71,8 +90,8 @@ startNode host port remotes nums sendfor waitfor = do
 
   where
     currentTime = liftIO $ getTime Monotonic
-    sendfor' = TimeSpec (fromIntegral sendfor) 0
-    waitfor' = TimeSpec (fromIntegral waitfor) 0
+    sendFor = TimeSpec (fromIntegral optsSendFor) 0
+    waitFor = TimeSpec (fromIntegral optsWaitFor) 0
 
 broadcast :: Serializable a => [ProcessId] -> a -> Process ()
 broadcast pids a =
