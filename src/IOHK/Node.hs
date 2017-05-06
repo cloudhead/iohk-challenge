@@ -82,15 +82,12 @@ startNode Options{..} remotes nums = do
         waitUntil (\t -> t - finished >= waitFor) $ \_ -> do
             send receiver Timeout
 
-        debug $ "Done."
-        terminate
-
     countBroadcasted <- takeMVar broadcastResult
     (result, countReceived) <- takeMVar receiveResult
     debug $ "broadcast: " ++ show countBroadcasted
     debug $ "received: " ++ show countReceived
 
-    putStrLn $ show $ (round result :: Int)
+    putStrLn $ show $ (countReceived, round result :: Int)
 
   where
     sendFor = TimeSpec (fromIntegral optsSendFor) 0
