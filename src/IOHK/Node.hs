@@ -13,13 +13,13 @@ import           Network.Socket (HostName, ServiceName)
 import           Control.Distributed.Process
 import           Control.Distributed.Process.Serializable (Serializable)
 import           Control.Distributed.Process.Node (newLocalNode, initRemoteTable, forkProcess)
-import           Control.Monad
+import           Control.Monad (forM_)
 import           Control.Concurrent (MVar, putMVar, takeMVar, newEmptyMVar, threadDelay)
-import           Data.Binary
+import           Data.Binary (Binary)
 import           Data.Typeable (Typeable)
-import           System.Clock
-import           System.IO
-import           GHC.Generics
+import           System.Clock (TimeSpec(..), Clock(Monotonic), getTime)
+import           System.IO (hPutStrLn, stderr)
+import           GHC.Generics (Generic)
 import           Control.Monad.IO.Class (MonadIO)
 
 data Options = Options
