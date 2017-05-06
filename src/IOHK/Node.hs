@@ -17,10 +17,10 @@ import           Control.Monad
 import           Control.Concurrent (MVar, putMVar, takeMVar, newEmptyMVar, threadDelay)
 import           Data.Binary
 import           Data.Typeable (Typeable)
-import           Data.Maybe (isNothing)
 import           System.Clock
 import           System.IO
 import           GHC.Generics
+import           Control.Monad.IO.Class (MonadIO)
 
 data Options = Options
     { optsHost    :: HostName
@@ -53,35 +53,44 @@ startNode :: Options
 startNode Options{..} remotes nums = do
     Right t <- createTransport optsHost optsPort defaultTCPParameters
     node <- newLocalNode t initRemoteTable
-    done <- newEmptyMVar :: IO (MVar (Double, Int))
+    broadcastResult <- newEmptyMVar :: IO (MVar Int)
+    receiveResult <- newEmptyMVar :: IO (MVar (Double, Int))
 
     receiver <- forkProcess node $ do
         register "receiver" =<< getSelfPid
         result <- receivePayloads
-        liftIO $ putMVar done result
+        liftIO $ putMVar receiveResult result
 
     broadcaster <- forkProcess node $ do
         self <- getSelfPid
         pids <- expect :: Process [ProcessId]
-        broadcastPayloads pids $
+        result <- broadcastPayloads pids 0 $
             zipWith3 (,,) (repeat self) [1..] (cycle nums)
+        liftIO $ putMVar broadcastResult result
 
     forkProcess node $ do
         pids <- connectRemotes remotes
         send broadcaster pids
         started <- currentTime
 
+        debug $ "Broadcasting..."
         finished <- waitUntil (\t -> t - started >= sendFor) $ \now -> do
-            send receiver Timeout
             send broadcaster Timeout
             return now
 
+        debug $ "Starting grace period..."
+        waitUntil (\t -> t - finished >= waitFor) $ \_ -> do
+            send receiver Timeout
+
+        debug $ "Done."
         terminate
 
+    countBroadcasted <- takeMVar broadcastResult
+    (result, countReceived) <- takeMVar receiveResult
+    debug $ "broadcast: " ++ show countBroadcasted
+    debug $ "received: " ++ show countReceived
 
-    (result, count) <- takeMVar done
-    debug $ "received: " ++ show count
-    putStrLn $ show $ round result
+    putStrLn $ show $ (round result :: Int)
 
   where
     sendFor = TimeSpec (fromIntegral optsSendFor) 0
@@ -104,15 +113,18 @@ broadcast :: Serializable a => [ProcessId] -> a -> Process ()
 broadcast pids a =
     forM_ pids (flip send a)
 
-broadcastPayloads :: [ProcessId] -> [Payload] -> Process ()
-broadcastPayloads pids (p : ps) = do
+broadcastPayloads :: [ProcessId] -> Int -> [Payload] -> Process Int
+broadcastPayloads pids n (p : ps) = do
     broadcast pids p
     mTimeout <- expectTimeout 0 :: Process (Maybe Timeout)
 
-    when (isNothing mTimeout) $
-        broadcastPayloads pids ps
-broadcastPayloads _ [] =
-    return ()
+    case mTimeout of
+        Nothing ->
+            broadcastPayloads pids (n + 1) ps
+        Just _ ->
+            return n
+broadcastPayloads _ n [] =
+    return n
 
 receivePayloads :: Process (Double, Int)
 receivePayloads =
@@ -149,5 +161,5 @@ connectRemotes remotes =
 millisecond :: Int
 millisecond = 1000
 
-debug :: String -> IO ()
-debug = hPutStrLn stderr
+debug :: MonadIO m => String -> m ()
+debug = liftIO . hPutStrLn stderr
