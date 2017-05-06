@@ -11,7 +11,6 @@ module IOHK.Node
 import           Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import           Network.Socket (HostName, ServiceName)
 import           Control.Distributed.Process
-import           Control.Distributed.Process.Serializable (Serializable)
 import           Control.Distributed.Process.Node (newLocalNode, initRemoteTable, forkProcess)
 import           Control.Monad (forM_)
 import           Control.Concurrent (MVar, putMVar, takeMVar, newEmptyMVar, threadDelay)
@@ -106,13 +105,9 @@ waitUntil cond action = do
         liftIO $ threadDelay $ 100 * millisecond
         waitUntil cond action
 
-broadcast :: Serializable a => [ProcessId] -> a -> Process ()
-broadcast pids a =
-    forM_ pids (flip send a)
-
 broadcastPayloads :: [ProcessId] -> Int -> [Payload] -> Process Int
 broadcastPayloads pids n (p : ps) = do
-    broadcast pids p
+    forM_ pids (flip send p)
     mTimeout <- expectTimeout 0 :: Process (Maybe Timeout)
 
     case mTimeout of
