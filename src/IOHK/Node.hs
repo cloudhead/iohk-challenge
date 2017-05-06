@@ -65,7 +65,7 @@ startNode Options{..} remotes nums = do
         self <- getSelfPid
         pids <- expect :: Process [ProcessId]
         result <- broadcastPayloads pids 0 $
-            zipWith3 (,,) (repeat self) [1..] (cycle nums)
+            zip3 (repeat self) [1..] (cycle nums)
         liftIO $ putMVar broadcastResult result
 
     forkProcess node $ do
@@ -79,7 +79,7 @@ startNode Options{..} remotes nums = do
             return now
 
         debug $ "Starting grace period..."
-        waitUntil (\t -> t - finished >= waitFor) $ \_ -> do
+        waitUntil (\t -> t - finished >= waitFor) $ \_ ->
             send receiver Timeout
 
     countBroadcasted <- takeMVar broadcastResult
@@ -87,7 +87,7 @@ startNode Options{..} remotes nums = do
     debug $ "broadcast: " ++ show countBroadcasted
     debug $ "received: " ++ show countReceived
 
-    putStrLn $ show $ (countReceived, round result :: Int)
+    print $ (countReceived, round result :: Int)
 
   where
     sendFor = TimeSpec (fromIntegral optsSendFor) 0
