@@ -15,6 +15,10 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     IOHK.Node
+  ghc-options:         -Wall
+                       -fno-warn-unused-do-bind
+                       -fwarn-tabs
+                       -fno-warn-name-shadowing
   build-depends:       base >= 4.7 && < 5
                      , distributed-process
                      , network
