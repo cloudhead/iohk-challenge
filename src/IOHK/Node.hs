@@ -33,8 +33,8 @@ defaultOptions :: Options
 defaultOptions = Options
     { optsHost    = "127.0.0.1"
     , optsPort    = "9000"
-    , optsSendFor = 10
-    , optsWaitFor = 3
+    , optsSendFor = 5
+    , optsWaitFor = 5
     , optsSeed    = 1
     }
 
