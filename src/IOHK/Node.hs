@@ -146,9 +146,6 @@ connectRemotes remotes =
     go [] pids =
         return pids
 
-second :: Int
-second = 1000 * millisecond
-
 millisecond :: Int
 millisecond = 1000
 
