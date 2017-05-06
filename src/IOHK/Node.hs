@@ -26,8 +26,8 @@ import           System.IO
 import           GHC.Generics
 
 data Options = Options
-    { optsHost    :: String
-    , optsPort    :: String
+    { optsHost    :: HostName
+    , optsPort    :: ServiceName
     , optsSendFor :: Int
     , optsWaitFor :: Int
     , optsSeed    :: Int
