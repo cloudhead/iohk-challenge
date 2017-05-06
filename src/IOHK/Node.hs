@@ -8,16 +8,13 @@ module IOHK.Node
     , defaultOptions
     ) where
 
-import           Network.Transport (EndPointAddress(..))
 import           Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import           Network.Socket (HostName, ServiceName)
 import           Control.Distributed.Process
 import           Control.Distributed.Process.Serializable (Serializable)
-import           Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, forkProcess)
+import           Control.Distributed.Process.Node (newLocalNode, initRemoteTable, forkProcess)
 import           Control.Monad
-import           Control.Monad.Extra (whileM)
 import           Control.Concurrent (MVar, putMVar, takeMVar, newEmptyMVar, threadDelay)
-import qualified Data.ByteString.Char8 as BS
 import           Data.Binary
 import           Data.Typeable (Typeable)
 import           Data.Maybe (isNothing)
