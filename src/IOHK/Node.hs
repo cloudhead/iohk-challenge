@@ -71,24 +71,34 @@ startNode Options{..} remotes nums = do
         send broadcaster pids
         started <- currentTime
 
-        forever $ do
-            t <- currentTime
-            if t - started >= sendFor
-            then do
-                send receiver Timeout
-                send broadcaster Timeout
-                terminate
-            else
-                liftIO $ threadDelay $ 100 * millisecond
+        finished <- waitUntil (\t -> t - started >= sendFor) $ \now -> do
+            send receiver Timeout
+            send broadcaster Timeout
+            return now
+
+        terminate
+
 
     (result, count) <- takeMVar done
     debug $ "received: " ++ show count
     putStrLn $ show $ round result
 
   where
-    currentTime = liftIO $ getTime Monotonic
     sendFor = TimeSpec (fromIntegral optsSendFor) 0
     waitFor = TimeSpec (fromIntegral optsWaitFor) 0
+
+currentTime :: Process TimeSpec
+currentTime = liftIO $ getTime Monotonic
+
+waitUntil :: (TimeSpec -> Bool) -> (TimeSpec -> Process a) -> Process a
+waitUntil cond action = do
+    t <- currentTime
+
+    if cond t
+    then action t
+    else do
+        liftIO $ threadDelay $ 100 * millisecond
+        waitUntil cond action
 
 broadcast :: Serializable a => [ProcessId] -> a -> Process ()
 broadcast pids a =
