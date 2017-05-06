@@ -63,7 +63,7 @@ startNode Options{..} remotes nums = do
     broadcaster <- forkProcess node $ do
         self <- getSelfPid
         pids <- expect :: Process [ProcessId]
-        result <- broadcastPayloads pids 0 $
+        result <- broadcastPayloads pids $
             zip3 (repeat self) [1..] (cycle nums)
         liftIO $ putMVar broadcastResult result
 
@@ -105,18 +105,21 @@ waitUntil cond action = do
         liftIO $ threadDelay $ 100 * millisecond
         waitUntil cond action
 
-broadcastPayloads :: [ProcessId] -> Int -> [Payload] -> Process Int
-broadcastPayloads pids n (p : ps) = do
-    forM_ pids (flip send p)
-    mTimeout <- expectTimeout 0 :: Process (Maybe Timeout)
+broadcastPayloads :: [ProcessId] -> [Payload] -> Process Int
+broadcastPayloads pids ps =
+    go ps 0
+  where
+    go (p : ps) n = do
+        forM_ pids (flip send p)
+        mTimeout <- expectTimeout 0 :: Process (Maybe Timeout)
 
-    case mTimeout of
-        Nothing ->
-            broadcastPayloads pids (n + 1) ps
-        Just _ ->
-            return n
-broadcastPayloads _ n [] =
-    return n
+        case mTimeout of
+            Nothing ->
+                go ps (n + 1)
+            Just _ ->
+                return n
+    go [] n =
+        return n
 
 receivePayloads :: Process (Double, Int)
 receivePayloads =
