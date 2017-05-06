@@ -111,6 +111,8 @@ broadcastPayloads pids (p : ps) = do
 
     when (isNothing mTimeout) $
         broadcastPayloads pids ps
+broadcastPayloads _ [] =
+    return ()
 
 receivePayloads :: Process (Double, Int)
 receivePayloads =
@@ -138,6 +140,8 @@ connectRemotes remotes =
             Just (WhereIsReply _ (Just pid)) ->
                 go rest (pid : pids)
             Nothing ->
+                go remotes pids
+            _ ->
                 go remotes pids
     go [] pids =
         return pids
