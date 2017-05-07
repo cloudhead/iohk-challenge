@@ -21,6 +21,8 @@ options =
         (ReqArg (\o opts -> opts { optsWaitFor = read o }) "<seconds>")  "Grace period duration"
     , Option [] ["with-seed"]
         (ReqArg (\o opts -> opts { optsSeed = read o })    "<integer>")  "Random seed"
+    , Option [] ["buffer"]
+        (ReqArg (\o opts -> opts { optsBuffer = read o })  "<count>")    "Number of messages to buffer to preserve total ordering"
     ]
 
 getOptions :: IO (Options, [(String, String)])
