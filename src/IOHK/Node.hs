@@ -16,6 +16,7 @@ import           Control.Monad (forM_)
 import           Control.Concurrent (MVar, putMVar, takeMVar, newEmptyMVar, threadDelay)
 import           Data.Binary (Binary)
 import           Data.Typeable (Typeable)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           System.Clock (TimeSpec(..), Clock(Monotonic), getTime)
 import           System.IO (hPutStrLn, stderr)
 import           GHC.Generics (Generic)
@@ -39,6 +40,7 @@ defaultOptions = Options
     }
 
 type Payload = (ProcessId, Int, Double)
+type Timestamp = Int
 
 data Timeout = Timeout
     deriving (Show, Generic, Typeable)
@@ -53,7 +55,7 @@ startNode Options{..} remotes nums = do
     Right t <- createTransport optsHost optsPort defaultTCPParameters
     node <- newLocalNode t initRemoteTable
     broadcastResult <- newEmptyMVar :: IO (MVar Int)
-    receiveResult <- newEmptyMVar :: IO (MVar (Double, Int))
+    receiveResult <- newEmptyMVar :: IO (MVar (Double, (Int, Int)))
 
     receiver <- forkProcess node $ do
         register "receiver" =<< getSelfPid
@@ -82,7 +84,7 @@ startNode Options{..} remotes nums = do
             send receiver Timeout
 
     countBroadcasted <- takeMVar broadcastResult
-    (result, countReceived) <- takeMVar receiveResult
+    (result, (countReceived, countDropped)) <- takeMVar receiveResult
     debug $ "broadcast: " ++ show countBroadcasted
     debug $ "received: " ++ show countReceived
 
@@ -110,7 +112,8 @@ broadcastPayloads pids ps =
     go ps 0
   where
     go (p : ps) n = do
-        forM_ pids (flip send p)
+        t <- round . (* microsecond) <$> liftIO getPOSIXTime :: Process Timestamp
+        forM_ pids (flip send (p, t))
         mTimeout <- expectTimeout 0 :: Process (Maybe Timeout)
 
         case mTimeout of
@@ -121,18 +124,25 @@ broadcastPayloads pids ps =
     go [] n =
         return n
 
-receivePayloads :: Process (Double, Int)
+receivePayloads :: Process (Double, (Int, Int))
 receivePayloads =
-    go 0 0
+    go 0 (0, 0) 0
   where
-    go !acc n = do
+    go !acc (n, nd) latest = do
         result <- receiveWait
-            [ match (\(pay :: Payload) -> return (Right pay))
-            , match (\(t   :: Timeout) -> return (Left t))
+            [ match (\(pay :: Payload, t :: Timestamp) -> return (Right (pay, t)))
+            , match (\(timeout :: Timeout)             -> return (Left timeout))
             ]
         case result of
-            Right (_, i, x) -> go (acc + (fromIntegral i) * x) (n + 1)
-            Left _          -> return (acc, n)
+            -- If the message was sent earlier than the last one received, and
+            -- the difference is above the treshold, drop the message.
+            Right (_, t) | t < latest, latest - t > treshold ->
+                go acc (n, nd + 1) latest
+            Right ((_, i, x), t) ->
+                go (acc + (fromIntegral i) * x) (n + 1, nd) t
+            Left _ ->
+                return (acc, (n, nd))
+    treshold = 1 * millisecond
 
 connectRemotes :: [(HostName, ServiceName)] -> Process [ProcessId]
 connectRemotes remotes =
@@ -153,8 +163,11 @@ connectRemotes remotes =
     go [] pids =
         return pids
 
-millisecond :: Int
+millisecond :: Num a => a
 millisecond = 1000
+
+microsecond :: Num a => a
+microsecond = 1000 * millisecond
 
 debug :: MonadIO m => String -> m ()
 debug = liftIO . hPutStrLn stderr

@@ -28,6 +28,7 @@ library
                      , clock
                      , extra
                      , binary
+                     , time
   default-language:    Haskell2010
 
 executable iohk-node
