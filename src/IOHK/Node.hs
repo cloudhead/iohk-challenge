@@ -86,7 +86,7 @@ startNode Options{..} remotes nums = do
         self <- getSelfPid
         pids <- expect :: Process [ProcessId]
         result <- broadcastMessages pids $
-            zip3 (repeat self) [1..] (cycle nums)
+            zip3 (repeat self) [1..] nums
         liftIO $ putMVar broadcastResult result
 
     -- Main process. Gets the PIDs of the remote nodes and sends them to the
