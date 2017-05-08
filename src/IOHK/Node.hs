@@ -76,7 +76,7 @@ startNode Options{..} remotes nums = do
 
     -- Receiver process.
     receiver <- forkProcess node $ do
-        register "receiver" =<< getSelfPid
+        register (procName optsHost optsPort) =<< getSelfPid
         result <- receiveMessages optsBuffer
         liftIO $ putMVar receiveResult result
 
@@ -216,11 +216,11 @@ connectRemotes :: [(HostName, ServiceName)] -> Process [ProcessId]
 connectRemotes remotes =
     go remotes []
   where
-    go remotes@((host, port) : rest) pids = do
-        whereisRemoteAsync (NodeId $ encodeEndPointAddress host port 0) "receiver"
-        result <- expectTimeout $ 1000 * millisecond
+    go remotes@((host, port) : rest) pids | pname <- procName host port = do
+        whereisRemoteAsync (NodeId $ encodeEndPointAddress host port 0) pname
+        result <- expectTimeout $ 10 * millisecond
         case result of
-            Just (WhereIsReply _ (Just pid)) ->
+            Just (WhereIsReply name (Just pid)) | name == pname ->
                 go rest (pid : pids)
             _ ->
                 go remotes pids
@@ -235,3 +235,6 @@ microsecond = 1000 * millisecond
 
 debug :: MonadIO m => String -> m ()
 debug = liftIO . hPutStrLn stderr
+
+procName :: HostName -> ServiceName -> String
+procName host port = "receiver:" ++ host ++ ":" ++ port
