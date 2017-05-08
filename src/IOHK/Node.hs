@@ -218,7 +218,7 @@ connectRemotes remotes =
   where
     go remotes@((host, port) : rest) pids = do
         whereisRemoteAsync (NodeId $ encodeEndPointAddress host port 0) "receiver"
-        result <- expectTimeout $ 100 * millisecond
+        result <- expectTimeout $ 1000 * millisecond
         case result of
             Just (WhereIsReply _ (Just pid)) ->
                 go rest (pid : pids)
