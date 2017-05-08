@@ -168,21 +168,15 @@ receiveMessages bufsize =
   where
     go :: Seq Msg     -- ^ A buffer of messages.
        -> (Int, Int)  -- ^ Number of messages received and dropped.
-       -> Timestamp   -- ^ The earliest timestamp we can receive.
+       -> Timestamp   -- ^ The earliest timestamp we can receive to keep ordering.
        -> Double      -- ^ The accumulator for our computation.
        -> Process (Double, (Int, Int))
 
     -- When the buffer is full, compute its result, and empty the buffer.
     go buf stats _ acc | Seq.length buf == bufsize =
-        go Seq.empty stats earliest (foldr computeResult acc sortedBuf)
+        go Seq.empty stats t result
       where
-        -- The computation to perform on each received (index, number) pair.
-        computeResult ((_, i, x), _) acc = acc + fromIntegral i * x
-        -- The buffer sorted by timestamp.
-        sortedBuf = Seq.unstableSortBy (comparing snd) buf
-        -- The largest timestamp of the buffer, which becomes the earliest
-        -- we can process to preserve ordering.
-        _ :> (_, earliest) = Seq.viewr sortedBuf
+        (t, result) = computeResult buf acc
 
     -- Receive a message or a timeout.
     go buf (n, nd) earliest acc = do
@@ -198,9 +192,24 @@ receiveMessages bufsize =
             -- The message was sent within our time window, add it to the buffer.
             Right msg ->
                 go (buf |> msg) (n + 1, nd) earliest acc
-            -- Timeout received, we're done.
+            -- Timeout received, we're done. Compute the results from the current
+            -- buffer and exit.
             Left _ ->
-                return (acc, (n, nd))
+                return (snd (computeResult buf acc), (n, nd))
+
+    -- Compute the new result based on the buffer and current result. Returns
+    -- the latest timestamp from the buffer and the new result.
+    computeResult :: Seq Msg -> Double -> (Timestamp, Double)
+    computeResult buf acc =
+        (latest, foldr f acc sortedBuf)
+      where
+        -- The computation to perform on each received (index, number) pair.
+        f ((_, i, x), _) acc = acc + fromIntegral i * x
+        -- The buffer sorted by timestamp.
+        sortedBuf = Seq.unstableSortBy (comparing snd) buf
+        -- The largest timestamp of the buffer, which becomes the earliest
+        -- we can process to preserve ordering.
+        _ :> (_, latest) = Seq.viewr sortedBuf
 
 -- | Translates host + port pairs to PIDs.
 connectRemotes :: [(HostName, ServiceName)] -> Process [ProcessId]
