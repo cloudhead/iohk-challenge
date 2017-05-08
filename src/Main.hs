@@ -30,22 +30,24 @@ getOptions = do
     a <- getArgs
     case getOpt RequireOrder options a of
         (flags, [], []) -> do
-            hPutStr stderr $ usageInfo (unlines
-                [ "usage: iohk-node [OPTION]... REMOTE..."
-                , ""
-                , "Connects to a set of remote nodes to exchange numbers."
-                , ""
-                , "The syntax for REMOTE is HOST:PORT"
-                , ""
-                , "OPTIONS:"
-                ]) options
-            exitWith $ ExitFailure 1
+            printUsage
         (flags, remotes, []) ->
             return (foldr ($) defaultOptions flags, map parse remotes)
         (_, _, msgs) -> do
             hPutStr stderr $ "iohk-node: " ++ head msgs
-            exitWith $ ExitFailure 1
+            printUsage
   where
+    printUsage = do
+        hPutStr stderr $ usageInfo (unlines
+            [ "usage: iohk-node [OPTION]... REMOTE..."
+            , ""
+            , "Connects to a set of remote nodes to exchange numbers."
+            , ""
+            , "The syntax for REMOTE is HOST:PORT"
+            , ""
+            , "OPTIONS:"
+            ]) options
+        exitWith $ ExitFailure 1
     parse addr =
         let [host, port] = splitOn ":" addr in (host, port)
 
